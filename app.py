@@ -33,7 +33,7 @@ def login_required(f):
     return decorated_function
 
 # -----------------------------------------------------------------------------
-# 1. API Endpoint for ERP Python sync
+# 1. API Endpoint for ERP sync
 # -----------------------------------------------------------------------------
 @app.route("/api/sync", methods=["POST"])
 def sync_dashboard():
@@ -130,20 +130,22 @@ def portal():
             <!-- Navigation Tabs -->
             <ul class="nav nav-pills mb-3 border-bottom pb-2">
                 <li class="nav-item">
-                    <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#tab-dashboard">📊 Operations Dashboard</button>
+                    <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#tab-dashboard">📊 Dashboard</button>
                 </li>
                 <li class="nav-item">
-                    <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-gstr3b">🏛️ GSTR-3B Tax Offset</button>
+                    <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-invoices">📄 Current Month Invoices</button>
                 </li>
                 <li class="nav-item">
-                    <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-ledgers">👥 Party Outstanding</button>
+                    <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-sales-filter">📈 Month-Wise Sales & Filter</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-cash-register">💵 Daily Cash Register</button>
                 </li>
             </ul>
 
             <div class="tab-content">
                 <!-- TAB 1: EXECUTIVE OPERATIONS DASHBOARD -->
                 <div class="tab-pane fade show active" id="tab-dashboard">
-                    <!-- KPI Metric Ribbon -->
                     <div class="row g-2 mb-3">
                         <div class="col-6 col-md-2">
                             <div class="kpi-card border-start border-4 border-primary">
@@ -189,7 +191,6 @@ def portal():
                         </div>
                     </div>
 
-                    <!-- Aging Ribbon -->
                     <div class="alert alert-light border py-2 mb-3 d-flex gap-4">
                         <span class="fw-bold text-dark">AR Aging Health:</span>
                         <span class="text-success fw-semibold">● &lt;30d: ₹ {{ data.get('aging_30', '0.00') }}</span>
@@ -197,92 +198,60 @@ def portal():
                         <span class="text-danger fw-semibold">● &gt;60d: ₹ {{ data.get('aging_over_60', '0.00') }}</span>
                     </div>
 
-                    <!-- Split Tables & Top Buyers -->
-                    <div class="row g-3">
-                        <div class="col-lg-8">
-                            <div class="card shadow-sm border-0">
-                                <div class="card-header bg-white fw-bold py-2">Recent Invoices & Receivables (Latest 10)</div>
-                                <div class="table-responsive">
-                                    <table class="table table-sm table-hover align-middle mb-0">
-                                        <thead class="table-light">
-                                            <tr>
-                                                <th>Doc #</th>
-                                                <th>Customer</th>
-                                                <th>Date</th>
-                                                <th class="text-end">Total (₹)</th>
-                                                <th class="text-end">Balance (₹)</th>
-                                                <th class="text-center">Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for inv in data.get('recent_invoices', []) %}
-                                            <tr>
-                                                <td class="fw-bold">{{ inv.doc_no }}</td>
-                                                <td>{{ inv.customer }}</td>
-                                                <td>{{ inv.date }}</td>
-                                                <td class="text-end">{{ inv.total }}</td>
-                                                <td class="text-end fw-bold text-danger">{{ inv.balance }}</td>
-                                                <td class="text-center">
-                                                    <span class="badge {{ 'bg-success' if inv.status == 'Paid' else ('bg-warning text-dark' if inv.status == 'Partial' else 'bg-danger') }}">
-                                                        {{ inv.status }}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                            {% else %}
-                                            <tr><td colspan="6" class="text-center py-3 text-muted">No recent invoices synced yet.</td></tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="col-lg-4">
-                            <div class="card shadow-sm border-0">
-                                <div class="card-header bg-white fw-bold py-2">Top Buyers (Active Period)</div>
-                                <ul class="list-group list-group-flush">
-                                    {% for buyer in data.get('top_buyers', []) %}
-                                    <li class="list-group-item d-flex justify-content-between align-items-center py-2">
-                                        <span class="fw-semibold text-truncate" style="max-width: 200px;">{{ buyer.name }}</span>
-                                        <span class="badge bg-primary rounded-pill">₹ {{ buyer.amount }}</span>
-                                    </li>
-                                    {% else %}
-                                    <li class="list-group-item text-muted text-center py-3">No top buyers recorded.</li>
-                                    {% endfor %}
-                                </ul>
-                            </div>
-                        </div>
+                    <div class="card shadow-sm border-0">
+                        <div class="card-header bg-white fw-bold py-2">Top Buyers (Active Period)</div>
+                        <ul class="list-group list-group-flush">
+                            {% for buyer in data.get('top_buyers', []) %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center py-2">
+                                <span class="fw-semibold">{{ buyer.name }}</span>
+                                <span class="badge bg-primary rounded-pill">₹ {{ buyer.amount }}</span>
+                            </li>
+                            {% else %}
+                            <li class="list-group-item text-muted text-center py-3">No top buyers recorded.</li>
+                            {% endfor %}
+                        </ul>
                     </div>
                 </div>
 
-                <!-- TAB 2: GSTR-3B TAX OFFSET REPORT -->
-                <div class="tab-pane fade" id="tab-gstr3b">
+                <!-- TAB 2: CURRENT MONTH DETAILED INVOICES[cite: 2] -->
+                <div class="tab-pane fade" id="tab-invoices">
                     <div class="card shadow-sm border-0 p-3">
-                        <h6 class="fw-bold mb-3 text-primary">🏛️ GSTR-3B Tax Offset & Net Liability Statement</h6>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="fw-bold text-primary mb-0">📄 Invoices Issued in {{ data.get('period', 'Current Month') }}</h6>
+                            <span class="badge bg-secondary">{{ data.get('current_month_invoices', [])|length }} Invoices</span>
+                        </div>
                         <div class="table-responsive">
-                            <table class="table table-bordered table-sm align-middle mb-0">
+                            <table class="table table-sm table-hover align-middle mb-0">
                                 <thead class="table-dark">
                                     <tr>
-                                        <th>Tax Period / Month</th>
-                                        <th class="text-end">Sales Taxable (₹)</th>
-                                        <th class="text-end">Outward GST (₹)</th>
-                                        <th class="text-end">Inward ITC Offset (₹)</th>
-                                        <th class="text-end">Net Cash Tax Due (₹)</th>
+                                        <th>Doc #</th>
+                                        <th>Customer / OEM Party</th>
+                                        <th>Date</th>
+                                        <th>Doc Type</th>
+                                        <th class="text-end">Total Amount (₹)</th>
+                                        <th class="text-end">Paid (₹)</th>
+                                        <th class="text-end">Pending Balance (₹)</th>
+                                        <th class="text-center">Status</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {% for row in data.get('gstr3b_reports', []) %}
+                                    {% for inv in data.get('current_month_invoices', []) %}
                                     <tr>
-                                        <td class="fw-bold">{{ row.month }}</td>
-                                        <td class="text-end">{{ row.sales_taxable }}</td>
-                                        <td class="text-end text-danger fw-semibold">₹ {{ row.outward_tax }}</td>
-                                        <td class="text-end text-primary fw-semibold">₹ {{ row.inward_itc }}</td>
-                                        <td class="text-end fw-bold {{ 'text-danger' if '-' not in row.net_liability else 'text-success' }}">
-                                            ₹ {{ row.net_liability }}
+                                        <td class="fw-bold">{{ inv.doc_no }}</td>
+                                        <td>{{ inv.customer }}</td>
+                                        <td>{{ inv.date }}</td>
+                                        <td><span class="badge bg-light text-dark border">{{ inv.doc_type }}</span></td>
+                                        <td class="text-end fw-semibold">₹ {{ inv.total }}</td>
+                                        <td class="text-end text-success">₹ {{ inv.paid }}</td>
+                                        <td class="text-end fw-bold text-danger">₹ {{ inv.balance }}</td>
+                                        <td class="text-center">
+                                            <span class="badge {{ 'bg-success' if inv.status == 'Paid' else ('bg-warning text-dark' if inv.status == 'Partial' else 'bg-danger') }}">
+                                                {{ inv.status }}
+                                            </span>
                                         </td>
                                     </tr>
                                     {% else %}
-                                    <tr><td colspan="5" class="text-center py-3 text-muted">No tax offset data synced.</td></tr>
+                                    <tr><td colspan="8" class="text-center py-4 text-muted">No invoices found for the current month.</td></tr>
                                     {% endfor %}
                                 </tbody>
                             </table>
@@ -290,30 +259,146 @@ def portal():
                     </div>
                 </div>
 
-                <!-- TAB 3: PARTY RECEIVABLES LEDGER SUMMARY -->
-                <div class="tab-pane fade" id="tab-ledgers">
+                <!-- TAB 3: MONTH-WISE SALES WITH DYNAMIC FILTER -->
+                <div class="tab-pane fade" id="tab-sales-filter">
                     <div class="card shadow-sm border-0 p-3">
-                        <h6 class="fw-bold mb-3 text-primary">👥 Customer / Party Receivables Outstanding</h6>
-                        <div class="table-responsive">
-                            <table class="table table-striped table-sm align-middle mb-0">
-                                <thead class="table-dark">
+                        <div class="row align-items-center mb-3">
+                            <div class="col-md-4">
+                                <h6 class="fw-bold text-primary mb-0">📈 Month-Wise Sales Analysis</h6>
+                            </div>
+                            <div class="col-md-4 ms-auto text-end">
+                                <select id="monthSelector" class="form-select form-select-sm" onchange="filterSalesMonth()">
+                                    {% for m in data.get('month_sales_reports', []) %}
+                                    <option value="{{ m.month }}">{{ m.month }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        {% for m in data.get('month_sales_reports', []) %}
+                        <div class="month-card" id="card-{{ m.month|replace(' ', '-') }}">
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-3">
+                                    <div class="p-2 bg-light border rounded text-center">
+                                        <small class="text-muted fw-bold">BILLS ISSUED</small>
+                                        <h5 class="fw-bold text-dark mt-1">{{ m.bills_count }}</h5>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="p-2 bg-light border rounded text-center">
+                                        <small class="text-muted fw-bold">TAXABLE VALUE</small>
+                                        <h5 class="fw-bold text-dark mt-1">₹ {{ m.taxable }}</h5>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="p-2 bg-light border rounded text-center">
+                                        <small class="text-muted fw-bold">GST COLLECTED</small>
+                                        <h5 class="fw-bold text-primary mt-1">₹ {{ m.tax }}</h5>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="p-2 bg-light border rounded text-center border-success">
+                                        <small class="text-success fw-bold">GROSS TURNOVER</small>
+                                        <h5 class="fw-bold text-success mt-1">₹ {{ m.gross }}</h5>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <h6 class="fw-bold mt-3 mb-2">Top Customers for {{ m.month }}</h6>
+                            <table class="table table-sm table-bordered align-middle">
+                                <thead class="table-light">
                                     <tr>
-                                        <th>Customer / OEM Client</th>
-                                        <th class="text-end">Total Billed (₹)</th>
-                                        <th class="text-end">Total Received (₹)</th>
-                                        <th class="text-end">Pending Outstanding (₹)</th>
+                                        <th>Customer / OEM Party</th>
+                                        <th class="text-end">Invoiced Value (₹)</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {% for party in data.get('party_ledgers', []) %}
+                                    {% for party in m.top_parties %}
                                     <tr>
-                                        <td class="fw-bold">{{ party.customer }}</td>
-                                        <td class="text-end">{{ party.billed }}</td>
-                                        <td class="text-end text-success">{{ party.paid }}</td>
-                                        <td class="text-end fw-bold text-danger">₹ {{ party.pending }}</td>
+                                        <td><b>{{ party.customer }}</b></td>
+                                        <td class="text-end fw-semibold text-primary">₹ {{ party.amount }}</td>
                                     </tr>
                                     {% else %}
-                                    <tr><td colspan="4" class="text-center py-3 text-muted">No pending balances synced.</td></tr>
+                                    <tr><td colspan="2" class="text-center py-2 text-muted">No party details recorded.</td></tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-4 text-muted">No historical month sales records found.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- TAB 4: DAILY CASH REGISTER[cite: 4] -->
+                <div class="tab-pane fade" id="tab-cash-register">
+                    <div class="card shadow-sm border-0 p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="fw-bold text-primary mb-0">💵 Daily Cash Book Register ({{ data.get('period', 'Active Month') }})</h6>
+                            <span class="badge bg-success">In-Hand: ₹ {{ data.get('cash_summary', {}).get('closing', '0.00') }}</span>
+                        </div>
+
+                        <!-- Cash KPI Ribbon[cite: 4] -->
+                        <div class="row g-2 mb-3">
+                            <div class="col">
+                                <div class="p-2 bg-light border rounded text-center">
+                                    <small class="text-muted fw-bold">OPENING BALANCE</small>
+                                    <h6 class="fw-bold mt-1 text-dark">₹ {{ data.get('cash_summary', {}).get('opening', '0.00') }}</h6>
+                                </div>
+                            </div>
+                            <div class="col">
+                                <div class="p-2 bg-light border rounded text-center">
+                                    <small class="text-muted fw-bold">CASH FROM BANK</small>
+                                    <h6 class="fw-bold mt-1 text-success">₹ {{ data.get('cash_summary', {}).get('bank', '0.00') }}</h6>
+                                </div>
+                            </div>
+                            <div class="col">
+                                <div class="p-2 bg-light border rounded text-center">
+                                    <small class="text-muted fw-bold">SALARY ADVANCES</small>
+                                    <h6 class="fw-bold mt-1 text-danger">₹ {{ data.get('cash_summary', {}).get('advance', '0.00') }}</h6>
+                                </div>
+                            </div>
+                            <div class="col">
+                                <div class="p-2 bg-light border rounded text-center">
+                                    <small class="text-muted fw-bold">EXPENSES / PETTY</small>
+                                    <h6 class="fw-bold mt-1 text-danger">₹ {{ data.get('cash_summary', {}).get('expenses', '0.00') }}</h6>
+                                </div>
+                            </div>
+                            <div class="col">
+                                <div class="p-2 bg-light border rounded text-center border-success">
+                                    <small class="text-success fw-bold">CLOSING CASH</small>
+                                    <h6 class="fw-bold mt-1 text-success">₹ {{ data.get('cash_summary', {}).get('closing', '0.00') }}</h6>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Cash Ledger Table[cite: 4] -->
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped align-middle mb-0">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Particulars / Description</th>
+                                        <th>Category</th>
+                                        <th class="text-end">Cash In (₹)</th>
+                                        <th class="text-end">Cash Out (₹)</th>
+                                        <th class="text-end">Running Balance (₹)</th>
+                                        <th>Remarks</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in data.get('cash_register_entries', []) %}
+                                    <tr>
+                                        <td>{{ row.date }}</td>
+                                        <td class="fw-bold">{{ row.particulars }}</td>
+                                        <td><small class="badge bg-light text-dark border">{{ row.type }}</small></td>
+                                        <td class="text-end text-success fw-semibold">{{ row.cash_in }}</td>
+                                        <td class="text-end text-danger fw-semibold">{{ row.cash_out }}</td>
+                                        <td class="text-end fw-bold">₹ {{ row.balance }}</td>
+                                        <td><small class="text-muted">{{ row.remarks }}</small></td>
+                                    </tr>
+                                    {% else %}
+                                    <tr><td colspan="7" class="text-center py-4 text-muted">No cash register entries found for this month.</td></tr>
                                     {% endfor %}
                                 </tbody>
                             </table>
@@ -324,6 +409,22 @@ def portal():
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <script>
+            function filterSalesMonth() {
+                var sel = document.getElementById("monthSelector").value.replace(/ /g, "-");
+                var cards = document.getElementsByClassName("month-card");
+                for (var i = 0; i < cards.length; i++) {
+                    cards[i].style.display = "none";
+                }
+                var activeCard = document.getElementById("card-" + sel);
+                if (activeCard) {
+                    activeCard.style.display = "block";
+                }
+            }
+            window.onload = function() {
+                filterSalesMonth();
+            };
+        </script>
     </body>
     </html>
     """, data=data)
